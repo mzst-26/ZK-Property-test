@@ -1,0 +1,6 @@
+{
+  "balances_pennies": ["1250000", "880000", "640000", "420000", "0", "0", "0", "0"],
+  "nonce": "1700000000",
+  "threshold_pennies": "3000000",
+  "commitment": "0xmockedcommitment"
+}
