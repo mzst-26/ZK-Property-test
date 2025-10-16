@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ZK Property Threshold Demo</title>
+  </head>
+  <body>
+    <main>
+      <h1>ZK Property Demo</h1>
+      <section class="card">
+        <h2>Plaid Sandbox Flow</h2>
+        <p>
+          Connect to the Plaid sandbox, fetch balances, and generate an in-browser Noir proof
+          that your total holdings meet a target property price.
+        </p>
+        <div class="actions">
+          <button id="connect-btn">Connect bank (sandbox)</button>
+          <button id="prove-btn" disabled>Generate proof &amp; verify</button>
+        </div>
+        <div class="input-row">
+          <label for="threshold-input">Threshold (pence)</label>
+          <input id="threshold-input" type="number" value="3000000" min="0" />
+        </div>
+        <div class="status" id="status"></div>
+      </section>
+
+      <section class="card">
+        <h2>Balances</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Balance (pence)</th>
+            </tr>
+          </thead>
+          <tbody id="balances-body"></tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2>Debug</h2>
+        <pre id="debug"></pre>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
