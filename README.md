@@ -1,11 +1,11 @@
 # ZK Property Test Harness
 
-This repository now includes a working Noir circuit, client-side prover, and server-side verifier for the balance ≥ threshold demo described in the project brief. The Plaid interactions remain mocked for speed, but the zero-knowledge flow compiles and verifies real proofs using Noir and the Barretenberg backend.
+This repository now includes a working Noir circuit, client-side prover, and server-side verifier for the balance ≥ threshold demo described in the project brief. The Plaid integration now talks to the real API so you can link an account (sandbox, development, or production depending on your credentials), pull current balances, and only generate a proof when the sum meets the property price you enter.
 
 ## Repository layout
 
 - `noir/balance_threshold/` – Noir workspace that proves the sum of eight balances is at least a public property price.
-- `server/` – Express API that mints sandbox Plaid tokens, returns deterministic balances, and verifies Noir proofs.
+- `server/` – Express API that exchanges Plaid Link tokens, fetches live balances, and verifies Noir proofs.
 - `web/` – Vite-powered single page app that walks through the sandbox flow and generates proofs in the browser.
 
 ## Prerequisites
@@ -44,14 +44,37 @@ npm install
 
 > **First-run note:** Barretenberg downloads the BN254 CRS the first time you generate a proof. Ensure the machine can reach `https://aztec-ignition.s3.amazonaws.com`, or pre-populate `~/.bb-crs` with the ignition SRS to avoid network failures during proof generation.
 
+## Configuring Plaid credentials
+
+Set the following environment variables before starting the server:
+
+| Variable | Description |
+| --- | --- |
+| `PLAID_CLIENT_ID` | Your Plaid client id. |
+| `PLAID_SECRET` | Your Plaid secret for the chosen environment. |
+| `PLAID_ENV` | `sandbox`, `development`, or `production` (defaults to `sandbox`). |
+| `PLAID_CLIENT_NAME` | Optional override for the name shown in Plaid Link (defaults to `ZK Property Demo`). |
+| `PLAID_COUNTRY_CODES` | Comma-separated list of country codes (defaults to `US`). |
+| `PLAID_REDIRECT_URI` | Optional redirect URI if your Plaid configuration requires one. |
+
+Export them in the shell that will run the backend, e.g.:
+
+```bash
+export PLAID_CLIENT_ID=your-client-id
+export PLAID_SECRET=your-secret
+export PLAID_ENV=sandbox
+```
+
+You can also copy `server/.env.example` to `.env` inside the `server/` directory and tweak the values before running `npm run dev`.
+
 ## Running the demo
 
-1. Start the Express API:
+1. Start the Express API after configuring your Plaid credentials:
    ```bash
    cd server
    npm run dev
    ```
-   The API listens on <http://localhost:3001> and exposes the endpoints required in the brief.
+   The API listens on <http://localhost:3001> and stores Plaid access tokens in memory for the session.
 
 2. In another terminal, launch the web client:
    ```bash
@@ -60,15 +83,15 @@ npm install
    ```
    Vite serves the UI at <http://localhost:8080>.
 
-3. Open the web app, click **Connect bank (sandbox)** to fetch balances, then click **Generate proof & verify** once the nonce and commitment load. When the total balance meets the entered threshold the UI displays `✅ Verified`.
+3. Open the web app, click **Connect bank** to launch Plaid Link, and complete the login for the account you want to prove against. Once the balances load, enter the property price in pence and click **Generate proof & verify**. The UI refuses to generate a proof if your balances are below the property price; otherwise it proves and verifies end-to-end.
 
 ## API contract
 
 | Route | Method | Notes |
 | --- | --- | --- |
-| `/api/create_link_token` | POST | Returns a mocked Plaid link token derived from the provided user id. |
-| `/api/exchange_public_token` | POST | Accepts `public_token` and responds with a stub access token. |
-| `/api/fetch_balances` | POST | Returns padded balances, nonce, commitment, and a suggested threshold. |
+| `/api/create_link_token` | POST | Calls Plaid to mint a real link token for the provided `userId`. |
+| `/api/exchange_public_token` | POST | Exchanges the Plaid `public_token` for an access token stored in memory. |
+| `/api/fetch_balances` | POST | Fetches live account balances, converts them to pence, zero-pads to eight entries, and returns the nonce/commitment. |
 | `/api/verify` | POST | Recomputes the commitment, checks the provided Noir proof against the published threshold, and rejects mismatches. |
 
 A `/healthz` endpoint is available for liveness checks.
@@ -77,7 +100,7 @@ A `/healthz` endpoint is available for liveness checks.
 
 `noir/balance_threshold/src/main.nr` adds eight unsigned 64-bit balances and constrains the sum to be ≥ the public `property_price`. Balances remain private witness values; the property price is the only public input. The repository keeps the compiled artifact synchronized with the web client under `web/public/artifacts/balance_threshold.json`.
 
-To try different balances locally, adjust `server/src/index.js` and rebuild the circuit with `nargo compile` before restarting the web app.
+To try different balances locally without Plaid you can still adjust the server to return deterministic values, but the default configuration now hits Plaid's APIs using the credentials you provide.
 
 ## Acceptance scenarios
 
