@@ -13,6 +13,8 @@ nargo compile
 nargo test
 ```
 
-The compiled artifact lives at `noir/balance_threshold/target/balance_threshold.json`. The web app expects the file to be copied to `web/public/artifacts/balance_threshold.json` after every rebuild.
+The compiled artifact lives at `noir/balance_threshold/target/balance_threshold.json`. The `target/` directory is ignored by git;
+copy `balance_threshold.json` to `web/public/artifacts/balance_threshold.json` after every rebuild so the browser bundle stays in
+sync with the circuit.
 
 Example inputs used by the mocked Plaid server are defined in `server/src/index.js`.

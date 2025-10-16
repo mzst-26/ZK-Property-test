@@ -27,6 +27,8 @@ This repository now includes a working Noir circuit, client-side prover, and ser
    nargo compile
    cp target/balance_threshold.json ../../web/public/artifacts/balance_threshold.json
    ```
+   The compiled files in `noir/balance_threshold/target/` are build artifacts and are ignored by git. Only the copy that lives
+   under `web/public/artifacts/` is versioned so the browser can load it.
 
 ## Installing dependencies
 
