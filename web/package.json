@@ -1,0 +1,24 @@
+{
+  "name": "web",
+  "version": "1.0.0",
+  "description": "Sandbox Plaid + Noir demo UI",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 8080",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 8080"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@aztec/bb.js": "^0.32.0",
+    "@noir-lang/acvm_js": "^0.32.0",
+    "@noir-lang/backend_barretenberg": "^0.32.0",
+    "@noir-lang/noir_js": "^0.32.0",
+    "@noir-lang/noirc_abi": "^0.32.0"
+  },
+  "devDependencies": {
+    "vite": "^7.1.10"
+  }
+}

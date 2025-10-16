@@ -1,75 +1,93 @@
 # ZK Property Test Harness
 
-This repository implements a fully mocked version of the property-rental proof-of-funds demo described in the project brief. Everything is hard-coded for speed so new teammates can exercise the Plaid flow, client UI, and “verification” loop without live services.
+This repository now includes a working Noir circuit, client-side prover, and server-side verifier for the balance ≥ threshold demo described in the project brief. The Plaid interactions remain mocked for speed, but the zero-knowledge flow compiles and verifies real proofs using Noir and the Barretenberg backend.
 
 ## Repository layout
 
-- `noir/` – placeholder Noir project notes plus a stubbed circuit artifact.
-- `server/` – Express server that mocks the Plaid + verifier backend.
-- `web/` – Single-page vanilla JS client that walks through the sandbox flow.
+- `noir/balance_threshold/` – Noir workspace that proves the sum of eight balances is at least a public property price.
+- `server/` – Express API that mints sandbox Plaid tokens, returns deterministic balances, and verifies Noir proofs.
+- `web/` – Vite-powered single page app that walks through the sandbox flow and generates proofs in the browser.
 
 ## Prerequisites
 
 - Node.js 18+
+- [`noirup`](https://github.com/noir-lang/noirup) to install the Noir toolchain
 
-## Getting started
+## Building the circuit
 
-1. Install dependencies for the server:
+1. Install Noir if you have not already:
+   ```bash
+   curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash
+   source ~/.bashrc
+   noirup -v 0.32.0
+   ```
+2. Compile the circuit and copy the artifact to the web app:
+   ```bash
+   cd noir/balance_threshold
+   nargo compile
+   cp target/balance_threshold.json ../../web/public/artifacts/balance_threshold.json
+   ```
+   The compiled files in `noir/balance_threshold/target/` are build artifacts and are ignored by git. Only the copy that lives
+   under `web/public/artifacts/` is versioned so the browser can load it.
+
+## Installing dependencies
+
+```bash
+# Backend
+cd server
+npm install
+
+# Frontend (separate terminal)
+cd web
+npm install
+```
+
+> **First-run note:** Barretenberg downloads the BN254 CRS the first time you generate a proof. Ensure the machine can reach `https://aztec-ignition.s3.amazonaws.com`, or pre-populate `~/.bb-crs` with the ignition SRS to avoid network failures during proof generation.
+
+## Running the demo
+
+1. Start the Express API:
    ```bash
    cd server
-   npm install
    npm run dev
    ```
    The API listens on <http://localhost:3001> and exposes the endpoints required in the brief.
 
-2. In a separate terminal, serve the web client:
+2. In another terminal, launch the web client:
    ```bash
    cd web
-   npx http-server -c-1
+   npm run dev
    ```
-   This serves `index.html` at <http://localhost:8080> (or the next available port). Any static server will do; `http-server` keeps the example simple.
+   Vite serves the UI at <http://localhost:8080>.
 
-3. Open the web app, click **Connect bank (sandbox)**, then **Generate proof & verify** once balances load.
-
-### Previewing the UI without a PR
-
-If you just want to see the mocked flow without pushing a branch or opening a pull request, run the two dev servers above and
-open <http://localhost:8080> in your browser. The static site loads directly from your machine, so you get the full experience
-locally before sharing any changes.
+3. Open the web app, click **Connect bank (sandbox)** to fetch balances, then click **Generate proof & verify** once the nonce and commitment load. When the total balance meets the entered threshold the UI displays `✅ Verified`.
 
 ## API contract
-
-The server exposes the exact routes described in the work breakdown. All values are deterministic for test purposes.
 
 | Route | Method | Notes |
 | --- | --- | --- |
 | `/api/create_link_token` | POST | Returns a mocked Plaid link token derived from the provided user id. |
 | `/api/exchange_public_token` | POST | Accepts `public_token` and responds with a stub access token. |
-| `/api/fetch_balances` | POST | Returns padded balances, nonce, commitment, and suggestion for the threshold. |
-| `/api/verify` | POST | Recomputes the commitment and checks if the sum of balances meets the provided threshold. |
+| `/api/fetch_balances` | POST | Returns padded balances, nonce, commitment, and a suggested threshold. |
+| `/api/verify` | POST | Recomputes the commitment, checks the provided Noir proof against the published threshold, and rejects mismatches. |
 
-A simple `/healthz` endpoint is available for liveness checks.
+A `/healthz` endpoint is available for liveness checks.
 
-## Mock data
+## Noir circuit
 
-- **Plaid credentials** – `client_id=68f109a353d2c9002058a176`, `secret=sandbox-14a1ae6cbcedb336e6d67c35a8448a` (embedded in the server).
-- **Balances** – four accounts with 12,500.00; 8,800.00; 6,400.00; and 4,200.00 GBP respectively (expressed in pence and padded to eight slots).
-- **Commitment** – derived from `balances|nonce` using a lightweight hash so the client and server stay consistent.
+`noir/balance_threshold/src/main.nr` adds eight unsigned 64-bit balances and constrains the sum to be ≥ the public `property_price`. Balances remain private witness values; the property price is the only public input. The repository keeps the compiled artifact synchronized with the web client under `web/public/artifacts/balance_threshold.json`.
 
-## Noir artifact
+To try different balances locally, adjust `server/src/index.js` and rebuild the circuit with `nargo compile` before restarting the web app.
 
-The Noir directory contains a mocked `balance_threshold.json` artifact and example inputs. Swap these with a real build when the circuit is ready; the web client already expects the file at `web/public/artifacts/balance_threshold.json`.
+## Acceptance scenarios
 
-## Acceptance scenarios covered
+- **Happy path** – threshold ≤ sum of balances returns `✅` after the Barretenberg verifier approves the proof.
+- **Insufficient funds** – threshold > sum triggers Noir proof failure (client-side) or a verifier rejection (`❌`).
+- **Commitment mismatch** – tampering with the commitment or balances fails verification.
+- **Multiple accounts** – balances are padded to eight slots before hashing and proving.
 
-- **Happy path** – threshold ≤ sum of balances returns `✅`.
-- **Insufficient funds** – threshold > sum triggers a server-side `❌`.
-- **Commitment mismatch** – tampering with the commitment fails verification.
-- **Multiple accounts** – balances are padded to eight slots before hashing.
+## Troubleshooting
 
-## Next steps for a real integration
+- **CRS download blocked** – if proof generation errors with `ENETUNREACH`, manually download the Ignition SRS on a networked machine and copy the `bn254_g1.dat` / `bn254_g2.dat` files into `~/.bb-crs`.
+- **Stale artifact** – the web app will refuse to prove if the artifact at `web/public/artifacts/balance_threshold.json` does not match the compiled circuit. Re-run `nargo compile` and copy the new artifact to resolve this.
 
-1. Replace the stub Noir artifact with a compiled circuit and hook up the browser proof generation.
-2. Swap mocked Plaid responses with live sandbox calls using the provided credentials.
-3. Harden the `/verify` route by integrating a real verifier library and removing the extra balances payload once commitments are trusted.
-4. Flesh out automated tests as the implementation moves beyond this hard-coded prototype.

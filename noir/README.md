@@ -1,13 +1,20 @@
-# Noir Circuit Placeholder
+# Balance threshold circuit
 
-This test repository stubs a Noir circuit that would normally prove that the sum of eight padded account balances is greater than or equal to a threshold. The actual circuit is not compiled in this exercise; instead, we provide a mocked artifact for the web client to load during the demo flow.
+`noir/balance_threshold` is a Noir workspace that proves the padded sum of eight account balances (private witnesses) is greater than or equal to a public property price.
 
-- `artifacts/balance_threshold.json` mimics the compiled Noir artifact that the browser would normally consume when generating a proof.
-- `inputs/example_inputs.json` contains example witness and public input values that match the stubbed server responses.
+## Useful commands
 
-To replace the stub with a real circuit:
+```bash
+# Compile with the currently selected noirup toolchain
+cd noir/balance_threshold
+nargo compile
 
-1. Install Noir via `curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash` and then `noirup` to select a toolchain.
-2. Run `nargo new balance_threshold` and implement the real constraint logic.
-3. Build the circuit with `nargo compile` and copy the resulting `*.json` artifact into `web/public/artifacts/` so the web client can fetch it.
+# Run Noir tests (add your own as needed)
+nargo test
+```
 
+The compiled artifact lives at `noir/balance_threshold/target/balance_threshold.json`. The `target/` directory is ignored by git;
+copy `balance_threshold.json` to `web/public/artifacts/balance_threshold.json` after every rebuild so the browser bundle stays in
+sync with the circuit.
+
+Example inputs used by the mocked Plaid server are defined in `server/src/index.js`.

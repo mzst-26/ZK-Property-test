@@ -1,5 +1,9 @@
 import cors from 'cors';
 import express from 'express';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { BarretenbergBackend } from '@noir-lang/backend_barretenberg';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -11,8 +15,33 @@ const DEMO_BALANCES_PENCE = [1250000, 880000, 640000, 420000];
 const MAX_ACCOUNTS = 8;
 const THRESHOLD_SUGGESTION = 3000000;
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const artifactPath = path.resolve(__dirname, '../../web/public/artifacts/balance_threshold.json');
+
+let backendPromise;
+let circuitArtifact;
+
 app.use(cors());
 app.use(express.json());
+
+async function loadArtifact() {
+  if (!circuitArtifact) {
+    const raw = await fs.readFile(artifactPath, 'utf-8');
+    circuitArtifact = JSON.parse(raw);
+  }
+  return circuitArtifact;
+}
+
+async function getBackend() {
+  if (!backendPromise) {
+    backendPromise = (async () => {
+      const artifact = await loadArtifact();
+      return new BarretenbergBackend(artifact);
+    })();
+  }
+  return backendPromise;
+}
 
 function toEightAccounts(values) {
   const padded = [...values];
@@ -34,6 +63,18 @@ function computeCommitment(balances, nonce) {
 function formatBalancesRaw() {
   const raw = toEightAccounts(DEMO_BALANCES_PENCE);
   return raw.map((value) => String(value));
+}
+
+function hexToUint8Array(hex) {
+  const normalized = hex.startsWith('0x') ? hex.slice(2) : hex;
+  if (normalized.length % 2 !== 0) {
+    throw new Error('Proof hex must have an even length.');
+  }
+  const bytes = new Uint8Array(normalized.length / 2);
+  for (let i = 0; i < bytes.length; i += 1) {
+    bytes[i] = parseInt(normalized.slice(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
 }
 
 app.get('/healthz', (_req, res) => {
@@ -68,14 +109,20 @@ app.post('/api/exchange_public_token', (req, res) => {
   });
 });
 
-app.post('/api/fetch_balances', (req, res) => {
+app.post('/api/fetch_balances', async (req, res) => {
+  try {
+    await loadArtifact();
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: `Failed to load Noir artifact: ${err.message}` });
+  }
+
   const { userId = DEMO_USER_ID } = req.body || {};
   const balances = formatBalancesRaw();
   const nonce = String(Date.now());
   const commitment = computeCommitment(balances, nonce);
   const sum = balances.reduce((acc, value) => acc + Number(value), 0);
 
-  res.json({
+  return res.json({
     userId,
     balances_pennies: balances,
     nonce,
@@ -85,9 +132,10 @@ app.post('/api/fetch_balances', (req, res) => {
   });
 });
 
-app.post('/api/verify', (req, res) => {
+app.post('/api/verify', async (req, res) => {
   const {
     proofHex,
+    public_inputs: publicInputs,
     threshold_pennies,
     public_commitment,
     balances_pennies = [],
@@ -96,6 +144,10 @@ app.post('/api/verify', (req, res) => {
 
   if (!proofHex) {
     return res.status(400).json({ ok: false, error: 'Missing proofHex.' });
+  }
+
+  if (!Array.isArray(publicInputs)) {
+    return res.status(400).json({ ok: false, error: 'public_inputs must be provided as an array.' });
   }
 
   if (!Array.isArray(balances_pennies) || balances_pennies.length !== MAX_ACCOUNTS) {
@@ -117,21 +169,33 @@ app.post('/api/verify', (req, res) => {
     });
   }
 
-  const total = balances_pennies.reduce((acc, value) => acc + Number(value), 0);
   const thresholdValue = Number(threshold_pennies || 0);
-
   if (Number.isNaN(thresholdValue)) {
     return res.status(400).json({ ok: false, error: 'Invalid threshold.' });
   }
 
-  if (thresholdValue <= total) {
-    return res.json({ ok: true, verified_at: new Date().toISOString() });
+  try {
+    const backend = await getBackend();
+    const proof = hexToUint8Array(proofHex);
+    const proofData = {
+      proof,
+      publicInputs
+    };
+
+    if (!publicInputs.length || publicInputs[0] !== thresholdValue.toString()) {
+      return res.status(400).json({ ok: false, error: 'Proof public input does not match requested threshold.' });
+    }
+
+    const verified = await backend.verifyProof(proofData);
+    if (!verified) {
+      return res.status(400).json({ ok: false, error: 'Proof verification failed.' });
+    }
+  } catch (err) {
+    console.error('Verification error', err);
+    return res.status(500).json({ ok: false, error: `Verifier error: ${err.message}` });
   }
 
-  return res.status(400).json({
-    ok: false,
-    error: 'Threshold not satisfied in mocked verifier.'
-  });
+  return res.json({ ok: true, verified_at: new Date().toISOString() });
 });
 
 app.listen(PORT, () => {
