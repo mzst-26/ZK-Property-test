@@ -9,8 +9,6 @@ const ARTIFACT_URL = '/public/artifacts/balance_threshold.json';
 const state = {
   balances: Array(8).fill('0'),
   accounts: [],
-  nonce: '',
-  commitment: '',
   artifact: null,
   noir: null,
   backend: null,
@@ -82,8 +80,6 @@ function renderDebug() {
     artifact_loaded: Boolean(state.artifact),
     balances_pennies: state.balances,
     total_balance_pennies: state.totalBalance,
-    nonce: state.nonce,
-    commitment: state.commitment,
     last_proof_hex: state.proofHex,
     last_public_inputs: state.publicInputs,
     plaid_accounts: state.accounts
@@ -139,8 +135,6 @@ async function handleConnect() {
 
     state.balances = balancesResponse.balances_pennies;
     state.accounts = balancesResponse.plaid_accounts || [];
-    state.nonce = balancesResponse.nonce;
-    state.commitment = balancesResponse.commitment;
     state.totalBalance = balancesResponse.total_balance_pennies || '0';
     state.proofHex = '';
     state.publicInputs = [];
@@ -157,15 +151,6 @@ async function handleConnect() {
   }
 }
 
-function computeClientCommitment(balances, nonce) {
-  const data = [...balances, nonce].join('|');
-  let hash = 0;
-  for (let i = 0; i < data.length; i += 1) {
-    hash = (hash * 31 + data.charCodeAt(i)) >>> 0;
-  }
-  return `0x${hash.toString(16).padStart(8, '0')}`;
-}
-
 async function handleProve() {
   const threshold = thresholdInput.value || '0';
   proveBtn.disabled = true;
@@ -173,11 +158,6 @@ async function handleProve() {
 
   try {
     await ensureCircuit();
-
-    const computedCommitment = computeClientCommitment(state.balances, state.nonce);
-    if (computedCommitment !== state.commitment) {
-      throw new Error('Local commitment mismatch. Please refetch balances.');
-    }
 
     const thresholdValue = Number(threshold);
     if (Number.isNaN(thresholdValue) || thresholdValue <= 0) {
@@ -206,10 +186,7 @@ async function handleProve() {
     const body = {
       proofHex,
       public_inputs: proofData.publicInputs,
-      threshold_pennies: threshold,
-      public_commitment: state.commitment,
-      balances_pennies: state.balances,
-      nonce: state.nonce
+      threshold_pennies: threshold
     };
 
     const verifyResponse = await callJson(`${apiBase}/api/verify`, body);
