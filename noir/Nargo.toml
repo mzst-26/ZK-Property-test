@@ -1,0 +1,2 @@
+[workspace]
+members = ["enroll", "signal", "vote", "vote_weighted"]
