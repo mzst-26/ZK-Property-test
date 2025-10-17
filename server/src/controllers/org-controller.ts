@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 
 import { pool } from "../db/pool.js";
 import { DomainVerificationService } from "../services/domain-verification-service.js";
+import { OrgKeyService, type OrgKeyRecord } from "../services/org-key-service.js";
 import { OrgService, type OrgRecord } from "../services/org-service.js";
 import { buildDomainChallenge } from "../utils/domain-verification.js";
 import { logger } from "../utils/logger.js";
@@ -14,6 +15,7 @@ export async function createOrg(req: Request, res: Response): Promise<void> {
 
     const orgService = new OrgService(client);
     const domainVerificationService = new DomainVerificationService(client);
+    const orgKeyService = new OrgKeyService(client);
     const id = randomUUID();
     const treeRoot = Buffer.from(req.body.tree_root_current ?? "", "hex");
 
@@ -30,9 +32,12 @@ export async function createOrg(req: Request, res: Response): Promise<void> {
 
     await client.query("COMMIT");
 
+    const keys = await orgKeyService.get(org.id);
+
     res.status(201).json({
       org: serializeOrg(org),
-      domain_verification: buildDomainChallenge(org.domain, verificationRecord)
+      domain_verification: buildDomainChallenge(org.domain, verificationRecord),
+      org_keys: serializeOrgKeys(keys)
     });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -48,6 +53,7 @@ export async function getOrg(req: Request, res: Response): Promise<void> {
   try {
     const orgService = new OrgService(client);
     const domainVerificationService = new DomainVerificationService(client);
+    const orgKeyService = new OrgKeyService(client);
     const org = await orgService.getOrgByDomain(req.params.domain);
 
     if (!org) {
@@ -57,11 +63,14 @@ export async function getOrg(req: Request, res: Response): Promise<void> {
 
     const verificationRecord = await domainVerificationService.get(org.id);
 
+    const keys = await orgKeyService.get(org.id);
+
     res.json({
       org: serializeOrg(org),
       domain_verification: verificationRecord
         ? buildDomainChallenge(org.domain, verificationRecord)
-        : null
+        : null,
+      org_keys: serializeOrgKeys(keys)
     });
   } catch (error) {
     logger.error("Failed to fetch org", error);
@@ -92,6 +101,13 @@ function serializeOrg(org: OrgRecord) {
     tree_roots_history: treeRootsHistory,
     settings,
     created_at: org.created_at.toISOString()
+  };
+}
+
+function serializeOrgKeys(record: OrgKeyRecord | null) {
+  return {
+    issuer_pubkeys: record?.issuer_pubkeys ?? [],
+    dkim_keys: record?.dkim_keys ?? []
   };
 }
 

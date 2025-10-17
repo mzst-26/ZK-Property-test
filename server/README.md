@@ -37,6 +37,16 @@ Organization onboarding now includes a DNS TXT verification step:
 `POST /orgs` automatically seeds an initial challenge and returns the expected DNS record in the response payload so the admin
 can begin domain verification immediately.
 
+### Issuer and DKIM key management
+
+After an organization verifies domain ownership, it can configure HR/SSO credential issuers or email infrastructure keys via:
+
+- `GET /orgs/:orgId/keys` – fetch the current issuer public keys and DKIM selector public keys.
+- `PUT /orgs/:orgId/keys` – replace both key sets; returns HTTP 409 if the org has not completed the DNS verification step.
+
+Both endpoints operate on the `org_key` table and expect issuer entries of the form `{ kid, jwk, issuer? }` and DKIM entries of
+`{ selector, public_key, domain? }`.
+
 ## Proof verification
 
 The actual verifier bindings are not implemented yet.  The `proofQueue` stub outlines the job payload for asynchronous proof

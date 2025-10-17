@@ -6,7 +6,9 @@
 2. **Domain verification** – DNS TXT challenge ensures domain control before enabling member enrollment. The backend exposes
    `/orgs/:orgId/verification/challenge` to generate a token that must appear at `_zk-workspace.<domain>` as
    `zk-workspace-verification=<token>`, and `/orgs/:orgId/verification/check` to confirm the record is live.
-3. **Issuer setup** – Upload HR/SSO issuer keys (for VC path) or DKIM selectors (for zkEmail).
+3. **Issuer setup** – Upload HR/SSO issuer keys (for VC path) or DKIM selectors (for zkEmail). The API exposes
+   `GET /orgs/:orgId/keys` to retrieve the current configuration and `PUT /orgs/:orgId/keys` to replace the key sets once
+   the domain is verified.
 4. **Invite distribution** – Generate single-use invite links or trigger automated credential issuance.
 5. **Channel & poll configuration** – Create RLN-scoped channels and polls with start/end windows.
 
