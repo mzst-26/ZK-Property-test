@@ -1,0 +1,7 @@
+[package]
+name = "enroll"
+version = "0.1.0"
+type = "bin"
+authors = ["ZK Anonymous Workspace"]
+
+[dependencies]

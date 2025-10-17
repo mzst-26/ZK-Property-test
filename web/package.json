@@ -1,24 +1,29 @@
 {
-  "name": "web",
-  "version": "1.0.0",
-  "description": "Sandbox Plaid + Noir demo UI",
-  "type": "module",
+  "name": "zk-workspace-web",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 8080",
-    "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0 --port 8080"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
   },
-  "keywords": [],
-  "author": "",
-  "license": "MIT",
   "dependencies": {
-    "@aztec/bb.js": "^0.32.0",
-    "@noir-lang/acvm_js": "^0.32.0",
-    "@noir-lang/backend_barretenberg": "^0.32.0",
-    "@noir-lang/noir_js": "^0.32.0",
-    "@noir-lang/noirc_abi": "^0.32.0"
+    "@heroicons/react": "^2.1.5",
+    "clsx": "^2.1.0",
+    "next": "14.2.3",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
   },
   "devDependencies": {
-    "vite": "^7.1.10"
+    "@types/node": "20.11.30",
+    "@types/react": "18.2.67",
+    "@types/react-dom": "18.2.22",
+    "autoprefixer": "10.4.17",
+    "eslint": "8.57.0",
+    "eslint-config-next": "14.2.3",
+    "postcss": "8.4.38",
+    "tailwindcss": "3.4.3",
+    "typescript": "5.4.2"
   }
 }
