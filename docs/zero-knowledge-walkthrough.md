@@ -1,43 +1,49 @@
-# Zero-knowledge balance verification walkthrough
+# Zero-knowledge workspace walkthrough
 
-This guide explains how the repository stitches together Plaid, Noir, and the Barretenberg backend so that you can prove a bank balance clears a property price without disclosing the actual number. It is written for newcomers, so each step focuses on *why* it exists before showing you *where* it lives in the codebase.
+This guide explains how the new repository structure supports anonymous-yet-verifiable collaboration inside organizations.
+Instead of proving a bank balance, we now focus on enrollment, anonymous signaling, and polls.
 
-## 1. Tooling setup (Aztec/Noir)
+## Tooling setup
 
-- **Why**: We need cryptographic tooling that understands our circuit format and can produce/verifiy proofs. Noir is the language for describing the circuit, while Barretenberg supplies a prover/verifier implementation.
-- **Code**:
-  - Front-end dependencies (`web/package.json`) pull in `@noir-lang/noir_js` and `@noir-lang/backend_barretenberg` so the browser can prove statements locally.
-  - The backend (`server/src/index.js`) imports `@noir-lang/backend_barretenberg` to verify proofs before trusting them.
-  - The Noir workspace (`noir/balance_threshold/`) is where we author the circuit and compile it into an artifact the web app can consume.
+- **Noir + Barretenberg** – Circuits live under `noir/` as individual packages (`enroll`, `signal`, `vote`, `vote_weighted`).
+  Compile them with `nargo compile` to produce artifacts consumed by the frontend and backend verifiers.
+- **Frontend** – `web/` is a Next.js application. Noir proofs will be generated client-side via a dedicated worker (see
+  `web/lib/proof-worker.ts` for the stub). WebAuthn provides passkey-based sessions.
+- **Backend** – `server/` is a TypeScript Express API. Controllers verify proofs, update Merkle roots, manage nullifiers,
+  and enqueue asynchronous verification/tally jobs via BullMQ.
 
-## 2. Circuit logic
+## Enrollment circuit
 
-- **Why**: The circuit is the private computation. It describes, in math, exactly what claim is being proven.
-- **Code**:
-  - `noir/balance_threshold/src/main.nr` keeps the logic small on purpose. It sums eight private balances and asserts that the total is greater than or equal to the public `property_price` input.
-  - When you run `nargo compile` the compiled artifact lands in `web/public/artifacts/balance_threshold.json`. This is what browsers and the server read to know how to prove/verify.
+The `noir/enroll` package expresses both eligibility paths:
 
-## 3. Proof generation on the user's device
+1. VC path – verifies a credential payload signature against issuer keys and binds the user secret to the org ID.
+2. zkEmail path – checks DKIM signatures over invite emails, ensuring the email domain matches the organization.
 
-- **Why**: Sensitive numbers should never reach the verifier. By generating the proof inside the browser, the user keeps the raw balances local.
-- **Code**:
-  - `web/src/main.js` is the browser app. It loads the Noir artifact, asks Plaid for balances, and keeps those balances private.
-  - Function `handleProve` packages the balances and the property price as circuit inputs, runs `state.noir.execute` to create a witness, and then calls `state.backend.generateProof(witness)` to produce the cryptographic proof.
-  - The proof and the public inputs (the property price) are stored in the UI state for transparency/debugging but the balances never leave the browser once the proof is created.
+Both paths derive the same `member_commitment` and `enroll_nullifier`. The backend persists the commitment in the Merkle tree
+and rejects duplicate nullifiers.
 
-## 4. Verification on the server
+## Anonymous signaling
 
-- **Why**: The relying party (our backend) only needs to know whether the user qualifies. It should accept or reject proofs without ever seeing the balances.
-- **Code**:
-  - `server/src/index.js` exposes `/api/verify`. It accepts the Noir proof plus the public inputs (just the property price) and ensures the caller-supplied threshold matches the proof's public input before verifying.
-  - With those safety checks in place, it calls `backend.verifyProof({ proof, publicInputs })` using the same circuit artifact to confirm the math is valid. No balances are transmitted or persisted.
-  - A `✅` response means the server is satisfied the user’s balances exceed the property price—no sensitive data exchanged.
+`noir/signal` proves Merkle membership, emits a channel-specific nullifier, and an RLN tag derived from the member secret and
+current epoch. The backend tracks nullifier usage per channel/epoch to enforce posting quotas.
 
-## Putting it all together
+## Poll voting
 
-1. The user links their account with Plaid; the backend never sees raw balances.
-2. The frontend fetches the balances, runs the Noir circuit locally, and produces a proof.
-3. The proof plus the public threshold are sent back to the server.
-4. The server verifies the proof; success means "yes, they can afford it" without exposing the actual balance.
+`noir/vote` ensures one vote per poll without revealing the choice. Ballots are stored as encrypted commitments that feed into
+a tally worker. The optional `noir/vote_weighted` circuit introduces a shareholder registry root to bound per-member weight
+without revealing the exact number.
 
-When you want to adapt this flow, swap out the circuit logic (step 2) for whatever condition you care about, recompile the artifact, and ensure both the client and server load the updated artifact. The rest of the pipeline stays the same.
+## Frontend flows
+
+- **Admin console** – `/admin` route guides domain verification, verification mode selection, and invite management.
+- **Member workspace** – `/member` route illustrates the enrollment proof flow, passkey registration, and RLN-guarded channel
+  usage. Components describe how receipts and nullifiers keep actions auditable without deanonymizing members.
+
+## Backend responsibilities
+
+- `/orgs` endpoints manage organization lifecycle and expose configuration.
+- `/enrollments` accepts enrollment proofs, inserts commitments, and returns updated Merkle roots.
+- Queue workers (stubs) validate proofs asynchronously and can anchor Merkle roots/nullifiers on Aztec for auditability.
+
+Follow this blueprint to implement the remaining verifier integrations and UI interactions. The architecture is intentionally
+modular so each component (frontend, backend, circuits) can evolve independently while sharing a consistent data model.

@@ -2,6 +2,10 @@ node_modules/
 *.log
 .DS_Store
 .env
+web/.next/
+web/.turbo/
+web/public/artifacts/
+server/dist/
 web/.cache/
 web/dist/
 noir/**/target/
