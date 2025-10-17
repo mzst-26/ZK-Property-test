@@ -2,9 +2,7 @@
   "abi": {
     "parameters": [
       { "name": "balances", "type": "array", "length": 8 },
-      { "name": "nonce", "type": "field" },
-      { "name": "threshold", "type": "field" },
-      { "name": "commitment", "type": "field" }
+      { "name": "property_price", "type": "field" }
     ],
     "return_type": "bool"
   },

@@ -81,15 +81,6 @@ function toEightAccounts(values) {
   return padded.slice(0, MAX_ACCOUNTS);
 }
 
-function computeCommitment(balances, nonce) {
-  const data = [...balances, nonce].join('|');
-  let hash = 0;
-  for (let i = 0; i < data.length; i += 1) {
-    hash = (hash * 31 + data.charCodeAt(i)) >>> 0;
-  }
-  return `0x${hash.toString(16).padStart(8, '0')}`;
-}
-
 function toStringPence(values) {
   return values.map((value) => String(Number(value) || 0));
 }
@@ -199,15 +190,11 @@ app.post('/api/fetch_balances', async (req, res) => {
       )
     );
 
-    const nonce = String(Date.now());
-    const commitment = computeCommitment(balancesPence, nonce);
     const sum = balancesPence.reduce((acc, value) => acc + Number(value), 0);
 
     return res.json({
       userId,
       balances_pennies: balancesPence,
-      nonce,
-      commitment,
       total_balance_pennies: String(sum),
       threshold_suggestion: String(Math.max(sum, THRESHOLD_SUGGESTION)),
       plaid_accounts: response.data.accounts.map((account) => ({
@@ -229,10 +216,7 @@ app.post('/api/verify', async (req, res) => {
   const {
     proofHex,
     public_inputs: publicInputs,
-    threshold_pennies,
-    public_commitment,
-    balances_pennies = [],
-    nonce
+    threshold_pennies
   } = req.body || {};
 
   if (!proofHex) {
@@ -241,25 +225,6 @@ app.post('/api/verify', async (req, res) => {
 
   if (!Array.isArray(publicInputs)) {
     return res.status(400).json({ ok: false, error: 'public_inputs must be provided as an array.' });
-  }
-
-  if (!Array.isArray(balances_pennies) || balances_pennies.length !== MAX_ACCOUNTS) {
-    return res.status(400).json({
-      ok: false,
-      error: `balances_pennies must be an array of length ${MAX_ACCOUNTS}.`
-    });
-  }
-
-  if (!nonce) {
-    return res.status(400).json({ ok: false, error: 'Missing nonce.' });
-  }
-
-  const expectedCommitment = computeCommitment(balances_pennies, nonce);
-  if (expectedCommitment !== public_commitment) {
-    return res.status(400).json({
-      ok: false,
-      error: 'Commitment mismatch.'
-    });
   }
 
   if (threshold_pennies === undefined) {

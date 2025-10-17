@@ -85,14 +85,25 @@ You can also copy `server/.env.example` to `.env` inside the `server/` directory
 
 3. Open the web app, click **Connect bank** to launch Plaid Link, and complete the login for the account you want to prove against. Once the balances load, enter the property price in pence and click **Generate proof & verify**. The UI refuses to generate a proof if your balances are below the property price; otherwise it proves and verifies end-to-end.
 
+## How the pieces map to the high-level flow
+
+If you are new to zero-knowledge tooling, start with [`docs/zero-knowledge-walkthrough.md`](docs/zero-knowledge-walkthrough.md). It breaks the repository down into the same four steps described in the project brief:
+
+1. Installing the Aztec/Noir tooling.
+2. Writing the Noir circuit.
+3. Generating the proof on the client.
+4. Verifying the proof on the server.
+
+Each section points at the exact files to read so you can connect the prose explanation with the working code.
+
 ## API contract
 
 | Route | Method | Notes |
 | --- | --- | --- |
 | `/api/create_link_token` | POST | Calls Plaid to mint a real link token for the provided `userId`. |
 | `/api/exchange_public_token` | POST | Exchanges the Plaid `public_token` for an access token stored in memory. |
-| `/api/fetch_balances` | POST | Fetches live account balances, converts them to pence, zero-pads to eight entries, and returns the nonce/commitment. |
-| `/api/verify` | POST | Recomputes the commitment, checks the provided Noir proof against the published threshold, and rejects mismatches. |
+| `/api/fetch_balances` | POST | Fetches live account balances, converts them to pence, and zero-pads to eight entries before returning them to the browser. |
+| `/api/verify` | POST | Checks the Noir proof against the published threshold. Only the proof and public inputs are accepted by this route. |
 
 A `/healthz` endpoint is available for liveness checks.
 
@@ -106,8 +117,7 @@ To try different balances locally without Plaid you can still adjust the server 
 
 - **Happy path** – threshold ≤ sum of balances returns `✅` after the Barretenberg verifier approves the proof.
 - **Insufficient funds** – threshold > sum triggers Noir proof failure (client-side) or a verifier rejection (`❌`).
-- **Commitment mismatch** – tampering with the commitment or balances fails verification.
-- **Multiple accounts** – balances are padded to eight slots before hashing and proving.
+- **Multiple accounts** – balances are padded to eight slots before proving.
 
 ## Troubleshooting
 
